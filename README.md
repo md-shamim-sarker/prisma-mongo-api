@@ -1,34 +1,146 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Prisma Mongo API (Nabaratna)
 
-## Getting Started
+## 1st Step
+Create Next.js Brand New Application (With App Router)
 
-First, run the development server:
-
+## 2nd Step
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+npm install prisma --save-dev
+npm install @prisma/client
+npx prisma init
+```
+## 3rd Step (.env)
+```code
+DATABASE_URL=mongodb+srv://username:password@cluster0.86wpxgn.mongodb.net/snigdha
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 4th Step (prisma/schema.prisma)
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+model Post {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String?
+  description String?
+  createdAt   DateTime @default(now())
+  updateAt    DateTime @updatedAt
+}
+```
 
-## Learn More
+## 5th Step (libs/prismadb.js)
+```js
+import {PrismaClient} from "@prisma/client";
 
-To learn more about Next.js, take a look at the following resources:
+const client = globalThis.prisma || new PrismaClient();
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+if(process.env.NODE_ENV !== 'production') globalThis.prisma = client;
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+export default client;
+```
 
-## Deploy on Vercel
+## 6th Step
+```bash
+npx prisma generate
+npx prisma db push
+```
+## 7th Step (app/api/posts/route.js)
+```js
+//http://localhost:3000/api/posts
+import prisma from '@/app/libs/prismadb';
+import {NextResponse} from 'next/server';
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+export const POST = async (request) => {
+    try {
+        const body = await request.json();
+        const {title, description} = body;
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+        const newPost = await prisma.post.create({
+            data: {
+                title,
+                description
+            }
+        });
+        return NextResponse.json(newPost);
+    } catch(error) {
+        return NextResponse.json({message: "POST Error", error}, {status: 500});
+    }
+};
+
+export const GET = async () => {
+    try {
+        const posts = await prisma.post.findMany();
+        return NextResponse.json(posts);
+    } catch(error) {
+        return NextResponse.json({message: "GET Error", error}, {status: 500});
+    }
+};
+```
+## 8th Step
+```js
+//http://localhost:3000/api/posts/[id]
+
+import prisma from '@/app/libs/prismadb';
+import {NextResponse} from 'next/server';
+
+// Get a record
+export const GET = async (request, {params}) => {
+    try {
+        const {id} = params;
+        const post = await prisma.post.findUnique({
+            where: {id}
+        });
+        if(!post) {
+            return NextResponse.json(
+                {message: "Post not found"}
+            );
+        }
+        return NextResponse.json(post);
+    } catch(error) {
+        return NextResponse.json({message: "GET Error", error}, {status: 500});
+    }
+};
+
+// Update a record
+export const PATCH = async (request, {params}) => {
+    try {
+        const body = await request.json();
+        const {title, description} = body;
+        const {id} = params;
+        await prisma.post.update({
+            where: {
+                id
+            },
+            data: {
+                title,
+                description
+            }
+        });
+        return NextResponse.json("Post updated");
+    } catch(error) {
+        return NextResponse.json({message: "PATCH Error", error}, {status: 500});
+    }
+};
+
+// Delete a record
+export const DELETE = async (request, {params}) => {
+    try {
+        const {id} = params;
+        await prisma.post.delete({
+            where: {id}
+        });
+        return NextResponse.json("Post deleted");
+    } catch(error) {
+        return NextResponse.json({message: "DELETE Error", error}, {status: 500});
+    }
+};
+```
+
+## 9th Step
+It's time to check all api routes with any api testing client
